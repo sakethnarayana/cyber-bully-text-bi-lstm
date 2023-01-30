@@ -1,0 +1,170 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "authorship_tag": "ABX9TyO+l/+foWZGAKeCu2hf3JD2",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/sakethnarayana/cyber-bully-text-bi-lstm/blob/main/bi-lstm\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from google.colab import drive\n",
+        "import pandas as pd\n",
+        "from sklearn.feature_extraction.text import TfidfVectorizer\n",
+        "from keras.utils import to_categorical\n",
+        "from keras.layers import Embedding, Bidirectional, LSTM\n",
+        "from keras.models import Sequential\n",
+        "from keras.layers import Embedding, LSTM, Dense\n",
+        "from keras.preprocessing.text import Tokenizer\n",
+        "from tensorflow.keras.preprocessing.sequence import pad_sequences\n",
+        "from keras.utils import to_categorical\n",
+        "from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score\n",
+        "import numpy as np\n",
+        "\n",
+        "drive.mount('/content/drive')\n",
+        "\n",
+        "data = pd.read_csv(\"/content/drive/MyDrive/texts.csv\")\n",
+        "\n",
+        "data = data.dropna()\n",
+        "label_map = {\"age\": \"cyberbullying\", \"other_cyberbullying\": \"cyberbullying\", \"religion\": \"cyberbullying\",\"gender\":\"cyberbullying\",\"ethnicity\":\"cyberbullying\",\"not_cyberbullying\":\"not_cyberbullying\"}\n",
+        "data[\"label\"] = data[\"label\"].replace(label_map)\n",
+        "data.to_csv(\"updated_data.csv\", index=False)\n",
+        "\n",
+        "\n",
+        "train_data = data.sample(frac=0.5, random_state=1)\n",
+        "test_data = data.drop(train_data.index)\n",
+        "\n",
+        "\n",
+        "train_data['text'] = train_data['text'].str.lower()\n",
+        "train_data['text'] = train_data['text'].str.replace('[^\\w\\s]','')\n",
+        "test_data['text'] = test_data['text'].str.lower()\n",
+        "test_data['text'] = test_data['text'].str.replace('[^\\w\\s]','')\n",
+        "\n",
+        "\n",
+        "vectorizer = TfidfVectorizer()\n",
+        "vectorizer.fit(train_data['text'])\n",
+        "\n",
+        "\n",
+        "train_features = vectorizer.transform(train_data['text'])\n",
+        "test_features = vectorizer.transform(test_data['text'])\n",
+        "\n",
+        "train_data['label'] = train_data['label'].replace(['cyberbullying','not_cyberbullying'],[1,0])\n",
+        "test_data['label'] = test_data['label'].replace(['cyberbullying','not_cyberbullying'],[1,0])\n",
+        "\n",
+        "train_labels = to_categorical(train_data['label'])\n",
+        "test_labels = to_categorical(test_data['label'])\n",
+        "\n",
+        "\n",
+        "tokenizer = Tokenizer()\n",
+        "tokenizer.fit_on_texts(train_data['text'])\n",
+        "train_sequences = tokenizer.texts_to_sequences(train_data['text'])\n",
+        "test_sequences = tokenizer.texts_to_sequences(test_data['text'])\n",
+        "\n",
+        "max_length = max([len(s) for s in train_sequences + test_sequences])\n",
+        "train_sequences = pad_sequences(train_sequences, maxlen=max_length)\n",
+        "test_sequences = pad_sequences(test_sequences, maxlen=max_length)\n",
+        "\n",
+        "train_labels = to_categorical(train_data['label'])\n",
+        "test_labels = to_categorical(test_data['label'])\n",
+        "\n",
+        "model = Sequential()\n",
+        "model.add(Embedding(input_dim=len(tokenizer.word_index) + 1, output_dim=32, input_length=max_length))\n",
+        "model.add(Bidirectional(LSTM(32)))\n",
+        "model.add(Dense(2, activation='softmax'))\n",
+        "model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])\n",
+        "\n",
+        "\n",
+        "model.fit(train_sequences, train_labels, epochs=1, validation_data=(test_sequences, test_labels))\n",
+        "\n",
+        "\n",
+        "text_train_features = train_features\n",
+        "\n",
+        "text_train_labels = train_labels\n",
+        "\n",
+        "test_predictions = model.predict(test_sequences)\n",
+        "\n",
+        "# Convert the predictions to the class labels\n",
+        "test_predictions = [np.argmax(p) for p in test_predictions]\n",
+        "\n",
+        "# Compare the predictions to the true labels\n",
+        "from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score\n",
+        "\n",
+        "test_labels = [np.argmax(p) for p in test_labels]\n",
+        "\n",
+        "print(\"Accuracy: \", accuracy_score(test_labels, test_predictions))\n",
+        "print(\"F1 Score: \", f1_score(test_labels, test_predictions))\n",
+        "print(\"Precision: \", precision_score(test_labels, test_predictions))\n",
+        "print(\"Recall: \", recall_score(test_labels, test_predictions))"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "8oY7BUq6_7bh",
+        "outputId": "da600fc1-ae13-4de2-c8f6-3acd09e4f8c3"
+      },
+      "execution_count": 34,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Drive already mounted at /content/drive; to attempt to forcibly remount, call drive.mount(\"/content/drive\", force_remount=True).\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "<ipython-input-34-181b68e65b41>:29: FutureWarning: The default value of regex will change from True to False in a future version.\n",
+            "  train_data['text'] = train_data['text'].str.replace('[^\\w\\s]','')\n",
+            "<ipython-input-34-181b68e65b41>:31: FutureWarning: The default value of regex will change from True to False in a future version.\n",
+            "  test_data['text'] = test_data['text'].str.replace('[^\\w\\s]','')\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "746/746 [==============================] - 553s 659ms/step - loss: 0.2981 - accuracy: 0.8500 - val_loss: 0.2740 - val_accuracy: 0.8458\n",
+            "746/746 [==============================] - 77s 102ms/step\n",
+            "Accuracy:  0.8457602952277111\n",
+            "F1 Score:  0.906087222959861\n",
+            "Precision:  0.9230569139527625\n",
+            "Recall:  0.8897302176311302\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [],
+      "metadata": {
+        "id": "BmX6dyc3CVuj"
+      },
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}
